@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ULTRA HACKER OS — DELUXE</title>
+<style>
+  :root {
+    --bg: #000;
+    --warn: #ffd60a;
+    --danger: #ff2d55;
+  }
+  /* Themes */
+  body.theme-green { --fg: #00ff9c; --fg-dim: #00c77a; --accent: #39ff14; --accent-rgb: 0,255,156; }
+  body.theme-blue  { --fg: #7df3ff; --fg-dim: #48c8d9; --accent: #14e0ff; --accent-rgb: 20,224,255; }
+  body.theme-red   { --fg: #ff8ea1; --fg-dim: #ff5c7a; --accent: #ff2d55; --accent-rgb: 255,45,85; }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    overflow: hidden;
+  }
+
+  /* Matrix rain canvas behind everything */
+  #matrix { position: fixed; inset: 0; z-index: 0; background: #000; display:block; }
+
+  /* CRT scanlines + vignette */
+  .crt::before { content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.02) 0px,
+      rgba(255,255,255,0.02) 2px,
+      rgba(0,0,0,0.02) 3px,
+      rgba(0,0,0,0.02) 4px);
+    mix-blend-mode: overlay; }
+  .crt::after { content:""; position: fixed; inset: 0; z-index: 1; pointer-events:none; box-shadow: inset 0 0 200px rgba(0,0,0,0.6); }
+
+  /* Top status bar */
+  .statusbar {
+    position: fixed; top: 8px; left: 8px; right: 8px; height: 42px; z-index: 3;
+    display: flex; align-items: center; gap: 12px; padding: 6px 10px;
+    background: linear-gradient(180deg, rgba(0,50,25,0.7), rgba(0,25,12,0.6));
+    border: 1px solid var(--fg-dim); border-radius: 10px;
+    box-shadow: 0 0 30px rgba(0,255,156,0.15), inset 0 0 20px rgba(0,255,156,0.05);
+    backdrop-filter: blur(3px);
+  }
+  .brand { font-weight: 700; letter-spacing: 2px; }
+  .blink { animation: blink 1s steps(1,end) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .sep { flex: 1; opacity:.6; border-bottom:1px dotted var(--fg-dim); }
+  .chip { font-size: 12px; padding: 4px 8px; border: 1px solid var(--fg-dim); border-radius: 999px; opacity:.9 }
+  .btn { cursor: pointer; user-select: none; padding: 6px 10px; border:1px solid var(--fg);
+    border-radius: 8px; background: rgba(0,0,0,0.4); box-shadow: 0 0 12px rgba(0,255,156,0.15);
+    transition: transform .06s ease, box-shadow .2s ease, background .2s ease; }
+  .btn:hover{ transform: translateY(-1px); box-shadow: 0 0 25px rgba(0,255,156,0.3); }
+  .btn:active{ transform: translateY(0); }
+
+  /* Windows */
+  .window { position: absolute; z-index: 2; min-width: 280px; min-height: 160px;
+    border: 1px solid var(--fg-dim); border-radius: 14px; overflow: hidden; color: var(--fg);
+    background: radial-gradient(1200px 400px at 20% 0%, rgba(0,255,156,0.05), transparent 50%),
+                linear-gradient(180deg, rgba(0,40,20,0.75), rgba(0,20,10,0.65));
+    box-shadow: 0 10px 40px rgba(0,255,156,0.08), inset 0 0 60px rgba(0,255,156,0.05);
+    backdrop-filter: blur(3px); }
+  .win-head { display:flex; align-items:center; gap:8px; padding:8px 10px; background: rgba(0,20,10,0.6); border-bottom:1px solid var(--fg-dim); cursor: move; }
+  .win-title { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .win-actions { margin-left: auto; display: flex; gap: 8px; }
+  .dot { width:10px; height:10px; border:1px solid var(--fg-dim); border-radius:50%; }
+  .dot.close{ background: var(--danger);} .dot.min{ background: var(--warn);} .dot.max{ background: var(--accent);} 
+  .win-body { padding: 10px; height: calc(100% - 42px); overflow: auto; }
+
+  /* Terminal */
+  #terminal { font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+  .prompt { color: var(--accent); }
+  .muted { color: #7cf7ca; opacity: .65; }
+  .cursor { display:inline-block; width: 8px; background: var(--fg); margin-left: 2px; }
+
+  /* Progress bar */
+  .bar { height: 10px; border: 1px solid var(--fg-dim); border-radius: 999px; overflow: hidden; background: rgba(0,0,0,.4); }
+  .bar > i { display:block; height: 100%; width: 0%; }
+
+  /* Glitch title */
+  .glitch { position: relative; display:inline-block; text-shadow: 0 0 12px rgba(0,255,156,.7); }
+  .glitch::before, .glitch::after{ content: attr(data-text); position: absolute; left:0; top:0; pointer-events:none; opacity:.7; }
+  .glitch::before{ transform: translate(1px, 0); filter: drop-shadow(0 0 6px #0ff); }
+  .glitch::after{ transform: translate(-1px, 0); filter: drop-shadow(0 0 6px #f0f); }
+  @keyframes glitchy { 0%,100%{ clip-path: inset(0 0 0 0);} 10%{ clip-path: inset(4% 0 82% 0);} 20%{ clip-path: inset(60% 0 12% 0);} 30%{ clip-path: inset(20% 0 60% 0);} 40%{ clip-path: inset(80% 0 0 0);} }
+  .glitch { animation: glitchy 2s infinite steps(2,end); }
+
+  .log { font-size: 12px; opacity: .9; }
+
+  /* Default window layout */
+  #win-terminal{ left: 24px; top: 70px; width: 56vw; height: 50vh; }
+  #win-radar{ right: 24px; top: 70px; width: 38vw; height: 34vh; }
+  #win-graphs{ right: 24px; bottom: 24px; width: 38vw; height: 36vh; }
+  #win-map{ left: 24px; bottom: 24px; width: 56vw; height: 36vh; }
+
+  @media (max-width: 900px) {
+    #win-terminal, #win-radar, #win-graphs, #win-map { position: static; width: auto; height: auto; margin: 12px; }
+    body { overflow-y: auto; }
+    .statusbar { position: static; margin:8px; }
+  }
+</style>
+</head>
+<body class="crt theme-green">
+<canvas id="matrix"></canvas>
+
+<!-- Status bar -->
+<div class="statusbar">
+  <span class="brand glitch" data-text="ULTRA HACKER OS">ULTRA HACKER OS</span>
+  <span class="chip">NET: <b id="net">10.24.31.7</b></span>
+  <span class="chip">USER: <b id="user">root@ghost</b></span>
+  <span class="chip">CPU: <b id="cpu">0%</b></span>
+  <span class="chip">MEM: <b id="mem">0%</b></span>
+  <div class="sep"></div>
+  <div class="btn" id="btn-scan">Network Scan</div>
+  <div class="btn" id="btn-brute">Brute Force</div>
+  <div class="btn" id="btn-trace">Trace Route</div>
+  <div class="btn" id="btn-map">Pulse Map</div>
+  <div class="btn" id="btn-clear">Clear</div>
+  <div class="btn" id="btn-full">Fullscreen</div>
+  <span class="chip">Theme:</span>
+  <div class="btn" id="theme-green">Green</div>
+  <div class="btn" id="theme-blue">Blue</div>
+  <div class="btn" id="theme-red">Red</div>
+</div>
+
+<!-- Windows -->
+<div class="window" id="win-terminal">
+  <div class="win-head"><span class="win-title">TERMINAL (type `help`)</span><div class="win-actions"><div class="dot close"></div><div class="dot min"></div><div class="dot max"></div></div></div>
+  <div class="win-body">
+    <div id="terminal"></div>
+  </div>
+</div>
+
+<div class="window" id="win-map">
+  <div class="win-head"><span class="win-title">MAP</span><div class="win-actions"><div class="dot close"></div><div class="dot min"></div><div class="dot max"></div></div></div>
+  <div class="win-body">
+    <canvas id="map" width="900" height="320" style="width:100%; height:100%"></canvas>
+    <div class="log" id="map-log"></div>
+  </div>
+</div>
+
+<div class="window" id="win-radar">
+  <div class="win-head"><span class="win-title">RADAR</span><div class="win-actions"><div class="dot close"></div><div class="dot min"></div><div class="dot max"></div></div></div>
+  <div class="win-body">
+    <canvas id="radar" width="600" height="400" style="width:100%; height:100%"></canvas>
+    <div class="log" id="radar-log"></div>
+  </div>
+</div>
+
+<div class="window" id="win-graphs">
+  <div class="win-head"><span class="win-title">SIGNALS</span><div class="win-actions"><div class="dot close"></div><div class="dot min"></div><div class="dot max"></div></div></div>
+  <div class="win-body">
+    <canvas id="chart" width="800" height="300" style="width:100%; height:220px"></canvas>
+    <div style="margin-top:8px">
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px"><span style="width:90px">Uplink</span><div class="bar"><i id="pb1"></i></div></div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px"><span style="width:90px">Decryption</span><div class="bar"><i id="pb2"></i></div></div>
+      <div style="display:flex; gap:8px; align-items:center"><span style="width:90px">Exfiltration</span><div class="bar"><i id="pb3"></i></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DOM utils =====
+const $ = (sel) => document.querySelector(sel);
+const rnd = (a=1,b=0)=>Math.random()*(b-a)+a;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+let ACCENT_RGB = '0,255,156';
+function refreshAccent(){ ACCENT_RGB = cssVar('--accent-rgb') || '0,255,156';
+  // recolor progress bars
+  ['pb1','pb2','pb3'].forEach(id => { const el = document.getElementById(id); el.style.background = `linear-gradient(90deg, rgba(${ACCENT_RGB},0.2), rgba(${ACCENT_RGB},0.5))`; });
+}
+
+// ===== Theme switching =====
+function setTheme(name){ document.body.classList.remove('theme-green','theme-blue','theme-red'); document.body.classList.add('theme-'+name); refreshAccent(); logTerm(`[THEME] switched to ${name}`); }
+['green','blue','red'].forEach(n=>{ $('#theme-'+n).addEventListener('click', ()=> setTheme(n)); });
+
+// ===== Matrix rain =====
+(function matrixRain(){
+  const c = document.getElementById('matrix');
+  const ctx = c.getContext('2d');
+  // FIX: use double quotes and escape backslash; expose length for tests
+  const chars = "アァカサタナハマヤャラワ12456789001#@$%*&{}[]=<>|/\\'".split('');
+  window.__matrixCharsLen = chars.length;
+  let w, h, colW = 16, cols, drops;
+  function resize(){ w = c.width = window.innerWidth; h = c.height = window.innerHeight; cols = Math.floor(w/colW); drops = Array(cols).fill(0).map(()=>Math.floor(Math.random()*h)); }
+  function step(){
+    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = `rgba(${ACCENT_RGB},0.9)`; ctx.font = '16px monospace';
+    for(let i=0;i<cols;i++){
+      const text = chars[Math.floor(Math.random()*chars.length)];
+      const x = i*colW, y = drops[i]*16;
+      ctx.fillText(text, x, y);
+      if(y>h && Math.random()>0.975) drops[i]=0; else drops[i]++;
+    }
+    requestAnimationFrame(step);
+  }
+  window.addEventListener('resize', resize); resize(); step();
+})();
+
+// ===== Draggable windows =====
+(function dragWindows(){
+  document.querySelectorAll('.window').forEach(win => {
+    const head = win.querySelector('.win-head');
+    let ox, oy, sx, sy, dragging=false;
+    head.addEventListener('pointerdown', (e)=>{ dragging=true; win.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; const r = win.getBoundingClientRect(); ox = r.left; oy = r.top; });
+    head.addEventListener('pointermove', (e)=>{ if(!dragging) return; const nx = ox + (e.clientX - sx); const ny = oy + (e.clientY - sy); win.style.left = nx + 'px'; win.style.top = ny + 'px'; });
+    head.addEventListener('pointerup', ()=> dragging=false);
+  })
+})();
+
+// ===== Terminal with input mode =====
+const terminal = document.getElementById('terminal');
+let currentInputEl = null; let inputBuf = '';
+
+function print(line="", cls=""){ const el = document.createElement('div'); el.innerHTML = line; if(cls) el.className = cls; terminal.appendChild(el); terminal.parentElement.scrollTop = terminal.parentElement.scrollHeight; }
+async function typeLine(text, speed=10){ return new Promise(resolve => { const el = document.createElement('div'); terminal.appendChild(el); let i=0; (function tick(){ el.textContent = text.slice(0, i++); terminal.parentElement.scrollTop = terminal.parentElement.scrollHeight; if(i<=text.length) setTimeout(tick, speed); else resolve(); })(); }); }
+function prompt(){ const el = document.createElement('div'); el.innerHTML = `<span class="prompt">root@ghost</span>:<span class="muted">~</span>$ <span class="inp"></span><span class="cursor blink">\u00A0</span>`; terminal.appendChild(el); currentInputEl = el.querySelector('.inp'); inputBuf=''; terminal.parentElement.scrollTop = terminal.parentElement.scrollHeight; }
+function logTerm(msg){ print(`[${new Date().toLocaleTimeString()}] ${msg}`); }
+
+const bootLines = [
+  '[BOOT] Initializing quantum cipher…',
+  '[OK] Kernel modules loaded: net,tun,pcap,aes,curve25519',
+  '[OK] Entropy pool warmed (source: cosmic rays)',
+  '[OK] Mounted tmpfs at /ops',
+  '[NET] Tun0 up at ' + ( ()=> [10,Math.floor(Math.random()*255),Math.floor(Math.random()*255),Math.floor(Math.random()*255)].join('.') )(),
+  '[AI ] Ghost-agent v7.9 online',
+  '[OK] System ready. Type `help`.'
+];
+
+(async function boot(){ refreshAccent(); for(const l of bootLines){ await typeLine(l, 8); } prompt(); selfTest(); })();
+
+function clearTerm(){ terminal.innerHTML=""; }
+
+async function seqNetworkScan(){ clearTerm(); for(let i=0;i<3;i++) await typeLine(`[SCAN] Initializing subnet discovery … ${'.'.repeat(i+1)}`);
+  for(let i=1;i<=24;i++){ await typeLine(`[SCAN] Probing 10.24.31.${i}  —  open ports: ${[22,80,443,8080,3306].filter(()=>Math.random()>0.5).join(', ')||'none'}`); }
+  await typeLine('[SCAN] Fingerprinting services…'); await typeLine('[VULN] CVE-20' + (10+Math.floor(Math.random()*15)) + '-XXXX potential RCE on 10.24.31.7'); await typeLine('[OK] Exported report to /ops/scan.json'); prompt(); }
+
+async function seqBruteforce(){ clearTerm(); await typeLine('[BRUTE] Target: vault@10.24.31.7'); for(let i=0;i<10;i++){ const tries= 1000+Math.floor(Math.random()*9000); await typeLine(`[BRUTE] Trying batch ${i+1}/10  —  ${tries} keys/s`); } await typeLine('[BRUTE] Candidate key found → 0x' + Math.floor(Math.random()*1e16).toString(16)); await typeLine('[CRYPTO] Decrypting bundle.enc → bundle.tar …'); await typeLine('[OK] Integrity verified.'); prompt(); }
+
+async function seqTrace(){ clearTerm(); await typeLine('[TRACE] Hop 1  —  192.168.0.1  —  1.2 ms'); const hops = [ '10.0.0.1','172.16.3.5','203.0.113.7','198.51.100.4','8.8.8.8','1.1.1.1' ]; let n=2; for(const h of hops){ await typeLine(`[TRACE] Hop ${n++}  —  ${h}  —  ${(Math.random()*30+1).toFixed(1)} ms`);} await typeLine('[TRACE] Route complete.'); prompt(); }
+
+// ===== MAP (equirectangular grid + arcs) =====
+(function worldMap(){
+  const cvs = document.getElementById('map'); const ctx = cvs.getContext('2d');
+  let w, h; const nodes = [
+    {name:'Taipei',   lat:25.0330, lon:121.5654},
+    {name:'Tokyo',    lat:35.6762, lon:139.6503},
+    {name:'Seoul',    lat:37.5665, lon:126.9780},
+    {name:'Singapore',lat:1.3521,  lon:103.8198},
+    {name:'Sydney',   lat:-33.8688,lon:151.2093},
+    {name:'Moscow',   lat:55.7558, lon:37.6176},
+    {name:'London',   lat:51.5072, lon:-0.1276},
+    {name:'Paris',    lat:48.8566, lon:2.3522},
+    {name:'Berlin',   lat:52.52,   lon:13.4050},
+    {name:'NYC',      lat:40.7128, lon:-74.0060},
+    {name:'LA',       lat:34.0522, lon:-118.2437},
+    {name:'SF',       lat:37.7749, lon:-122.4194},
+    {name:'São Paulo',lat:-23.55,  lon:-46.633},
+    {name:'Johannesburg',lat:-26.2041, lon:28.0473},
+    {name:'Dubai',    lat:25.2048, lon:55.2708}
+  ];
+  function resize(){ const rect = cvs.getBoundingClientRect(); w = cvs.width = rect.width*devicePixelRatio; h = cvs.height = rect.height*devicePixelRatio; drawStatic(); }
+  function proj(lat, lon){ const x = (lon+180)/360*w; const y = (90-lat)/180*h; return [x,y]; }
+  function drawStatic(){ ctx.clearRect(0,0,w,h);
+    // grid
+    ctx.strokeStyle = `rgba(${ACCENT_RGB},0.18)`; ctx.lineWidth = 1*devicePixelRatio;
+    for(let lon=-180; lon<=180; lon+=30){ ctx.beginPath(); const x = (lon+180)/360*w; ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+    for(let lat=-90; lat<=90; lat+=30){ ctx.beginPath(); const y = (90-lat)/180*h; ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    // horizon glow
+    const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,`rgba(${ACCENT_RGB},0.15)`); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,w,6*devicePixelRatio);
+    // nodes
+    for(const n of nodes){ const [x,y]=proj(n.lat,n.lon); ctx.fillStyle = `rgba(${ACCENT_RGB},0.9)`; ctx.beginPath(); ctx.arc(x,y,3*devicePixelRatio,0,Math.PI*2); ctx.fill(); }
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // animate arcs
+  const routes = [];
+  function pulse(){
+    const a = nodes[Math.floor(Math.random()*nodes.length)]; let b = nodes[Math.floor(Math.random()*nodes.length)]; if(a===b) b = nodes[(nodes.indexOf(a)+1)%nodes.length];
+    const [x1,y1]=proj(a.lat,a.lon), [x2,y2]=proj(b.lat,b.lon);
+    const cx = (x1+x2)/2 + (Math.random()*0.6-0.3)*Math.hypot(x2-x1,y2-y1);
+    const cy = (y1+y2)/2 + (Math.random()*0.6-0.3)*Math.hypot(x2-x1,y2-y1)*-0.2;
+    routes.push({x1,y1,x2,y2,cx,cy,t:0,a:a.name,b:b.name});
+    $('#map-log').innerText = `[MAP] link ${a.name} → ${b.name}`;
+  }
+  function draw(){ drawStatic();
+    for(const r of routes){ r.t += 0.01; const t = r.t; if(t>1.2){ routes.splice(routes.indexOf(r),1); continue; }
+      // trail
+      ctx.strokeStyle = `rgba(${ACCENT_RGB},${Math.max(0,0.8-0.6*(t))})`; ctx.lineWidth = 2*devicePixelRatio;
+      ctx.beginPath(); ctx.moveTo(r.x1,r.y1); ctx.quadraticCurveTo(r.cx,r.cy,r.x2,r.y2); ctx.stroke();
+      // head dot moving along the curve
+      const tt = Math.min(t,1); const x = (1-tt)*(1-tt)*r.x1 + 2*(1-tt)*tt*r.cx + tt*tt*r.x2; const y = (1-tt)*(1-tt)*r.y1 + 2*(1-tt)*tt*r.cy + tt*tt*r.y2;
+      ctx.fillStyle = `rgba(${ACCENT_RGB},1)`; ctx.beginPath(); ctx.arc(x,y,3*devicePixelRatio,0,Math.PI*2); ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+  // public triggers
+  window.__mapPulse = () => { for(let i=0;i<5;i++) setTimeout(pulse, i*150); };
+})();
+
+// ===== Radar canvas =====
+(function radar(){
+  const cvs = document.getElementById('radar'); const ctx = cvs.getContext('2d');
+  let w, h, r; const blips = [];
+  function resize(){ const rect = cvs.getBoundingClientRect(); w = cvs.width = rect.width*devicePixelRatio; h = cvs.height = rect.height*devicePixelRatio; r = Math.min(w,h)/2 - 10*devicePixelRatio; }
+  window.addEventListener('resize', resize); resize();
+  function addBlip(){ const ang = Math.random()*Math.PI*2; const rad = Math.random()*r*0.9; blips.push({x: Math.cos(ang)*rad, y: Math.sin(ang)*rad, a: 1}); $('#radar-log').innerText = `[RADAR] echo @ ${ang.toFixed(2)} rad  |  ${rad.toFixed(0)} px`; }
+  setInterval(addBlip, 1200);
+  let sweep = 0;
+  function draw(){ ctx.clearRect(0,0,w,h); ctx.save(); ctx.translate(w/2,h/2); ctx.strokeStyle = `rgba(${ACCENT_RGB},0.25)`; ctx.lineWidth = 1*devicePixelRatio; for(let i=1;i<=4;i++){ ctx.beginPath(); ctx.arc(0,0,r*i/4,0,Math.PI*2); ctx.stroke(); } for(let i=0;i<12;i++){ ctx.beginPath(); ctx.rotate(Math.PI/6); ctx.moveTo(0,0); ctx.lineTo(r,0); ctx.stroke(); } ctx.setTransform(1,0,0,1,w/2,h/2);
+    // sweep
+    sweep += 0.02; const grad = ctx.createRadialGradient(0,0,0,0,0,r); grad.addColorStop(0,`rgba(${ACCENT_RGB},0.0)`); grad.addColorStop(1,`rgba(${ACCENT_RGB},0.35)`); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r,sweep-0.2,sweep+0.01); ctx.closePath(); ctx.fill();
+    // blips
+    for(const b of blips){ b.a *= 0.98; if(b.a<0.05) { blips.splice(blips.indexOf(b),1); continue; } ctx.fillStyle=`rgba(${ACCENT_RGB},${b.a})`; ctx.beginPath(); ctx.arc(b.x, b.y, 4*devicePixelRatio, 0, Math.PI*2); ctx.fill(); }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ===== Signal chart =====
+(function chart(){ const c = document.getElementById('chart'); const ctx = c.getContext('2d'); let w = c.width, h = c.height; let data = Array(w).fill(h/2); function step(){ data.shift(); const last = data[data.length-1]; const next = clamp(last + rnd(-12,12), 20, h-20); data.push(next); ctx.clearRect(0,0,w,h); ctx.strokeStyle = `rgba(${ACCENT_RGB},0.85)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, data[0]); for(let x=1;x<w;x++){ ctx.lineTo(x, data[x]); } ctx.stroke(); ctx.strokeStyle = `rgba(${ACCENT_RGB},0.2)`; ctx.lineWidth = 1; ctx.beginPath(); for(let x=0;x<w;x+=40){ ctx.moveTo(x,0); ctx.lineTo(x,h); } for(let y=0;y<h;y+=40){ ctx.moveTo(0,y); ctx.lineTo(w,y); } ctx.stroke(); requestAnimationFrame(step);} step(); })();
+
+// ===== Fake system metrics =====
+const cpuEl = $('#cpu'), memEl = $('#mem'); let cpu=10, mem=18; function approach(v,target,rate){ return v + (target - v)*rate; }
+setInterval(()=>{ cpu = approach(cpu, 10 + Math.sin(Date.now()/700)*30 + Math.random()*10, 0.08); mem = approach(mem, 35 + Math.cos(Date.now()/1200)*25 + Math.random()*5, 0.06); cpuEl.textContent = clamp(cpu|0,0,100)+'%'; memEl.textContent = clamp(mem|0,100)+'%'; }, 100);
+
+// ===== Progress Bars animation =====
+function animateBar(el, to=100, dur=2000){ const start = performance.now(); function tick(now){ const t = clamp((now-start)/dur, 0, 1); el.style.width = (t*to) + '%'; if(t<1) requestAnimationFrame(tick);} requestAnimationFrame(tick);} setInterval(()=>{ animateBar($('#pb1'), 20 + Math.random()*75, 900); animateBar($('#pb2'), 15 + Math.random()*80, 1100); animateBar($('#pb3'), 25 + Math.random()*70, 1300); }, 1500);
+
+// ===== Meta =====
+(function initMeta(){ const ip = () => [10, Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255)].join('.'); document.getElementById('net').textContent = ip(); const names=['ghost','cipher','echo','xeno','hydra','oracle']; document.getElementById('user').textContent = 'root@' + names[Math.floor(Math.random()*names.length)]; })();
+
+// ===== Buttons =====
+$('#btn-scan').addEventListener('click', seqNetworkScan);
+$('#btn-brute').addEventListener('click', seqBruteforce);
+$('#btn-trace').addEventListener('click', seqTrace);
+$('#btn-map').addEventListener('click', ()=> window.__mapPulse());
+$('#btn-clear').addEventListener('click', ()=>{ clearTerm(); prompt(); });
+$('#btn-full').addEventListener('click', ()=>{ if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); });
+
+// ===== Keyboard shortcuts & input =====
+window.addEventListener('keydown', (e)=>{
+  // theme quick keys
+  if(e.key==='1') setTheme('green');
+  if(e.key==='2') setTheme('blue');
+  if(e.key==='3') setTheme('red');
+
+  // global action hotkeys
+  if(e.ctrlKey && e.key.toLowerCase()==='k'){ e.preventDefault(); seqNetworkScan(); return; }
+  if(e.ctrlKey && e.key.toLowerCase()==='b'){ e.preventDefault(); seqBruteforce(); return; }
+  if(e.ctrlKey && e.key.toLowerCase()==='t'){ e.preventDefault(); seqTrace(); return; }
+  if(e.ctrlKey && e.key.toLowerCase()==='m'){ e.preventDefault(); window.__mapPulse(); return; }
+
+  // terminal input mode
+  const allowed = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if(currentInputEl){
+    if(allowed){ inputBuf += e.key; currentInputEl.textContent = inputBuf; }
+    else if(e.key === 'Backspace'){ inputBuf = inputBuf.slice(0, -1); currentInputEl.textContent = inputBuf; }
+    else if(e.key === 'Enter'){ handleCommand(inputBuf.trim()); }
+  }
+});
+
+function handleCommand(cmd){
+  // echo typed command to terminal (freeze current line)
+  const last = currentInputEl; if(!last) return; last.parentElement.innerHTML = last.parentElement.innerHTML.replace('<span class="cursor blink">\u00A0</span>', '');
+
+  const [head, ...rest] = cmd.split(' '); const arg = rest.join(' ');
+  switch((head||'').toLowerCase()){
+    case 'help':
+      print('Available: help, scan, brute, trace, map, theme <green|blue|red>, clear, echo <text>, ls, cat <file>, fullscreen');
+      break;
+    case 'scan':
+      seqNetworkScan(); return;
+    case 'brute':
+      seqBruteforce(); return;
+    case 'trace':
+      seqTrace(); return;
+    case 'map':
+      window.__mapPulse(); break;
+    case 'theme':
+      if(['green','blue','red'].includes(arg)) setTheme(arg); else print('Usage: theme <green|blue|red>');
+      break;
+    case 'clear':
+      clearTerm(); break;
+    case 'echo':
+      print(arg); break;
+    case 'ls':
+      print('bundle.tar  scan.json  secrets.txt  vault.enc');
+      break;
+    case 'cat':
+      if(arg==='secrets.txt') print(`API_KEY=sk-********************\nTOKEN=ghp_********************************`); 
+      else if(arg==='scan.json') print('{"hosts":["10.24.31.1","10.24.31.7"],"open":[22,80,443]}'); 
+      else print(`cat: ${arg||''}: No such file`);
+      break;
+    case 'fullscreen':
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen();
+      break;
+    case '':
+      break;
+    default:
+      print(`${head}: command not found`);
+  }
+  prompt();
+}
+
+// ===== Minimal self-tests ("test cases") =====
+function selfTest(){
+  const results = [];
+  function ok(name, cond){ results.push({name, pass: !!cond}); if(!cond){ console.error('[TEST FAIL]', name); } }
+  try {
+    ok('matrix chars exported', typeof window.__matrixCharsLen === 'number' && window.__matrixCharsLen > 10);
+    ok('map pulse function exists', typeof window.__mapPulse === 'function');
+    setTheme('blue'); ok('theme switch to blue', document.body.classList.contains('theme-blue'));
+    setTheme('green'); ok('requestAnimationFrame exists', typeof window.requestAnimationFrame === 'function');
+    ok('progress bars present', !!document.getElementById('pb1') && !!document.getElementById('pb2') && !!document.getElementById('pb3'));
+  } catch(e){ console.error('SelfTest error', e); }
+  const passed = results.filter(r=>r.pass).length;
+  print(`[TEST] ${passed}/${results.length} checks passed`);
+}
+</script>
+</body>
+</html>
