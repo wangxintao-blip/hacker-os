@@ -1,10 +1,13 @@
 {
-  "name": "黑客作系统",
+  "name": "HackerOS",
   "short_name": "HackerOS",
-  "start_url": "./index.html",
+  "description": "A hacker-style web operating system.",
+  "id": "/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon-192.png",
@@ -16,5 +19,15 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
 }
